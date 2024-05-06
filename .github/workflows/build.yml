@@ -101,6 +101,7 @@ jobs:
           mkdir llvm-install/lib/bfd-plugins
           ln -sf ../LLVMgold.so llvm-install/lib/bfd-plugins/LLVMgold.so
           ln -sf llvm-llc llvm-install/bin/llc
+          ln -sf llvm-opt llvm-install/bin/opt
           llvm-strip llvm-install/lib/*.so* llvm-install/bin/* || true
 
       - name: Package LLVM
