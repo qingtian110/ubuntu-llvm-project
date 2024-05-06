@@ -1,0 +1,127 @@
+name: Build releases
+
+on: workflow_dispatch
+jobs:
+  build:
+    name: clang-${{ matrix.version }} [${{ matrix.arch }}-${{ matrix.os }}]
+    runs-on: ${{matrix.runner}}
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - x86_64
+        os:
+          - ubuntu-22.04
+        version:
+          - 16.0.6
+          - 17.0.6
+
+        include:
+          - version: 16.0.6
+            branch: release/16.x
+          - version: 17.0.6
+            branch: release/17.x
+          - os: ubuntu-22.04
+            runner: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build System Setup
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git zstd xz-utils zlib1g-dev
+          sudo apt-get install -y ninja-build binutils-dev libxml2-dev
+          sudo apt-get install -y clang lld llvm
+
+      - name: Checkout LLVM ${{ matrix.version }}
+        uses: actions/checkout@v4
+        with:
+          repository: llvm/llvm-project
+          ref: ${{matrix.branch}}
+          path: llvm-project
+
+      - name: Patch llvm-project
+        run: |
+          if [[ "${{ matrix.version }}" == 16.* ]]; then
+            git -C llvm-project apply $GITHUB_WORKSPACE/patches/llvm-16-add-lld-install-targets.patch
+            git -C llvm-project apply $GITHUB_WORKSPACE/patches/llvm-16-add-llvm-name-prefix-to-llc-lli-opt-tools.patch
+            git -C llvm-project apply $GITHUB_WORKSPACE/patches/llvm-16-force-disable-clang-ast-introspection.patch
+          elif [[ "${{ matrix.version }}" == 17.* ]]; then
+            git -C llvm-project apply $GITHUB_WORKSPACE/patches/llvm-17-add-lld-install-targets.patch
+            git -C llvm-project apply $GITHUB_WORKSPACE/patches/llvm-17-add-llvm-name-prefix-to-llc-lli-opt-tools.patch
+            git -C llvm-project apply $GITHUB_WORKSPACE/patches/llvm-17-force-disable-clang-ast-introspection.patch
+          elif [[ "${{ matrix.version }}" == 18.* ]]; then
+            git -C llvm-project apply $GITHUB_WORKSPACE/patches/llvm-18-add-lld-install-targets.patch
+            git -C llvm-project apply $GITHUB_WORKSPACE/patches/llvm-18-add-llvm-name-prefix-to-llc-lli-opt-tools.patch
+            git -C llvm-project apply $GITHUB_WORKSPACE/patches/llvm-18-force-disable-clang-ast-introspection.patch
+          fi
+
+      - name: Configure LLVM host tools
+        run: |
+          CXX=clang++ CC=clang cmake -G Ninja -S llvm-project/llvm -B llvm-host \
+            -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" \
+            -DCMAKE_BUILD_TYPE=Release -Wno-dev
+
+      - name: Build LLVM host tools
+        run: |
+          CXX=clang++ CC=clang cmake --build llvm-host --target llvm-tblgen clang-tblgen llvm-config clang-tidy-confusable-chars-gen clang-pseudo-gen
+          HOSTBIN_PATH="$GITHUB_WORKSPACE/llvm-host/bin"
+          echo "LLVM_NATIVE_TOOL_DIR=$HOSTBIN_PATH" >> "$GITHUB_ENV"
+          echo "LLVM_TABLEGEN=$HOSTBIN_PATH/llvm-tblgen" >> "$GITHUB_ENV"
+          echo "CLANG_TABLEGEN=$HOSTBIN_PATH/clang-tblgen" >> "$GITHUB_ENV"
+          echo "LLVM_CONFIG_PATH=$HOSTBIN_PATH/llvm-config" >> "$GITHUB_ENV"
+          echo "LLVM_VERSION=${{ matrix.version }}" >> "$GITHUB_ENV"
+
+      - name: Configure LLVM
+        run: |
+          TARGET_NAME=${{ matrix.arch }}-${{ matrix.os }}
+          CMAKE_TOOLCHAIN_FILE="$GITHUB_WORKSPACE/cmake/$TARGET_NAME.cmake"
+          CMAKE_INITIAL_CACHE="$GITHUB_WORKSPACE/cmake/llvm-distribution.cmake"
+          CXX=clang++ CC=clang cmake -G Ninja -S llvm-project/llvm -B llvm-build \
+            -DCMAKE_INSTALL_PREFIX=llvm-install \
+            -DCMAKE_TOOLCHAIN_FILE="$CMAKE_TOOLCHAIN_FILE" \
+            -C $CMAKE_INITIAL_CACHE -Wno-dev
+
+      - name: Build LLVM
+        run: cmake --build llvm-build
+
+      - name: Install LLVM
+        run: |
+          CXX=clang++ CC=clang cmake --build llvm-build --target install-distribution
+
+      - name: Install LLVMgold
+        continue-on-error: true
+        run: |
+          cp llvm-build/lib/LLVMgold.so llvm-install/lib
+          mkdir llvm-install/lib/bfd-plugins
+          ln -sf ../LLVMgold.so llvm-install/lib/bfd-plugins/LLVMgold.so
+          ln -sf llvm-llc llvm-install/bin/llc
+          llvm-strip llvm-install/lib/*.so* llvm-install/bin/* || true
+
+      - name: Package LLVM
+        run: |
+          mv llvm-install clang-${{ matrix.version }}-${{ matrix.arch }}-${{ matrix.os }}
+          tar -cJf clang-${{ matrix.version }}-${{ matrix.arch }}-${{ matrix.os }}.tar.xz clang-${{ matrix.version }}-${{ matrix.arch }}-${{ matrix.os }}
+
+      - name: Upload LLVM package
+        uses: actions/upload-artifact@v4
+        with:
+          name: clang-${{ matrix.version }}-${{ matrix.arch }}-${{ matrix.os }}
+          path: clang-${{ matrix.version }}-${{ matrix.arch }}-${{ matrix.os }}.tar.xz
+
+      - name: Create release
+        continue-on-error: true
+        uses: ncipollo/release-action@v1.14.0
+        with:
+          name: clang-${{ matrix.version }}
+          allowUpdates: true
+          tag: ${{ matrix.version }}
+          commit: main
+          replacesArtifacts: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+          artifacts: clang-${{ matrix.version }}-${{ matrix.arch }}-${{ matrix.os }}.tar.xz
