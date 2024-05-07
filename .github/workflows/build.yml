@@ -4,7 +4,7 @@ on: workflow_dispatch
 jobs:
   build:
     name: clang-${{ matrix.version }} [${{ matrix.arch }}-${{ matrix.os }}]
-    runs-on: ${{matrix.runner}}
+    runs-on: ${{ matrix.runner }}
     defaults:
       run:
         shell: bash
@@ -22,8 +22,10 @@ jobs:
         include:
           - version: 16.0.6
             branch: release/16.x
+            version_major: 16
           - version: 17.0.6
             branch: release/17.x
+            version_major: 17
           - os: ubuntu-22.04
             runner: ubuntu-22.04
 
@@ -42,23 +44,19 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: llvm/llvm-project
-          ref: ${{matrix.branch}}
+          ref: ${{ matrix.branch }}
           path: llvm-project
 
       - name: Patch llvm-project
         run: |
-          if [[ "${{ matrix.version }}" == 16.* ]]; then
+          if [[ "${{ matrix.version_major }}" == 16 ]]; then
             git -C llvm-project apply $GITHUB_WORKSPACE/patches/llvm-16-add-lld-install-targets.patch
             git -C llvm-project apply $GITHUB_WORKSPACE/patches/llvm-16-add-llvm-name-prefix-to-llc-lli-opt-tools.patch
             git -C llvm-project apply $GITHUB_WORKSPACE/patches/llvm-16-force-disable-clang-ast-introspection.patch
-          elif [[ "${{ matrix.version }}" == 17.* ]]; then
+          elif [[ "${{ matrix.version_major }}" == 17 ]]; then
             git -C llvm-project apply $GITHUB_WORKSPACE/patches/llvm-17-add-lld-install-targets.patch
             git -C llvm-project apply $GITHUB_WORKSPACE/patches/llvm-17-add-llvm-name-prefix-to-llc-lli-opt-tools.patch
             git -C llvm-project apply $GITHUB_WORKSPACE/patches/llvm-17-force-disable-clang-ast-introspection.patch
-          elif [[ "${{ matrix.version }}" == 18.* ]]; then
-            git -C llvm-project apply $GITHUB_WORKSPACE/patches/llvm-18-add-lld-install-targets.patch
-            git -C llvm-project apply $GITHUB_WORKSPACE/patches/llvm-18-add-llvm-name-prefix-to-llc-lli-opt-tools.patch
-            git -C llvm-project apply $GITHUB_WORKSPACE/patches/llvm-18-force-disable-clang-ast-introspection.patch
           fi
 
       - name: Configure LLVM host tools
@@ -93,16 +91,16 @@ jobs:
       - name: Install LLVM
         run: |
           CXX=clang++ CC=clang cmake --build llvm-build --target install-distribution
-
-      - name: Install LLVMgold
-        continue-on-error: true
-        run: |
           cp llvm-build/lib/LLVMgold.so llvm-install/lib
           mkdir llvm-install/lib/bfd-plugins
           ln -sf ../LLVMgold.so llvm-install/lib/bfd-plugins/LLVMgold.so
           ln -sf llvm-llc llvm-install/bin/llc
           ln -sf llvm-opt llvm-install/bin/opt
-          llvm-strip llvm-install/lib/*.so* llvm-install/bin/* || true
+          rm -rf llvm-install/bin/{clang,clang++,clang-cl,clang-cpp}
+          ln -sf clang-${{ matrix.version_major }} llvm-install/bin/clang
+          ln -sf clang-${{ matrix.version_major }} llvm-install/bin/clang++
+          ln -sf clang-${{ matrix.version_major }} llvm-install/bin/clang-cl
+          ln -sf clang-${{ matrix.version_major }} llvm-install/bin/clang-cpp
 
       - name: Package LLVM
         run: |
