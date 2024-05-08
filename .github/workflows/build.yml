@@ -18,6 +18,7 @@ jobs:
         version:
           - 16.0.6
           - 17.0.6
+          - 18.1.5
 
         include:
           - version: 16.0.6
@@ -26,6 +27,9 @@ jobs:
           - version: 17.0.6
             branch: release/17.x
             version_major: 17
+          - version: 18.1.5
+            branch: release/18.x
+            version_major: 18
           - os: ubuntu-22.04
             runner: ubuntu-22.04
 
@@ -38,7 +42,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y git zstd xz-utils zlib1g-dev
           sudo apt-get install -y ninja-build binutils-dev libxml2-dev
-          sudo apt-get install -y clang lld llvm
+
+      - name: Install LLVM
+        run: |
+          export PATH="/opt/clang/bin:$PATH"
+          mkdir /opt/clang
+          curl -LO https://github.com/sbwml/ubuntu-llvm-project/releases/download/16.0.6/clang-16.0.6-x86_64-ubuntu-22.04.tar.xz --progress-bar
+          sudo tar --strip-components=1 -C /opt/clang -xf clang-16.0.6-x86_64-ubuntu-22.04.tar.xz
+          clang --version
 
       - name: Checkout LLVM ${{ matrix.version }}
         uses: actions/checkout@v4
@@ -61,12 +72,14 @@ jobs:
 
       - name: Configure LLVM host tools
         run: |
+          export PATH="/opt/clang/bin:$PATH"
           CXX=clang++ CC=clang cmake -G Ninja -S llvm-project/llvm -B llvm-host \
             -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" \
             -DCMAKE_BUILD_TYPE=Release -Wno-dev
 
       - name: Build LLVM host tools
         run: |
+          export PATH="/opt/clang/bin:$PATH"
           CXX=clang++ CC=clang cmake --build llvm-host --target llvm-tblgen clang-tblgen llvm-config clang-tidy-confusable-chars-gen clang-pseudo-gen
           HOSTBIN_PATH="$GITHUB_WORKSPACE/llvm-host/bin"
           echo "LLVM_NATIVE_TOOL_DIR=$HOSTBIN_PATH" >> "$GITHUB_ENV"
@@ -77,6 +90,7 @@ jobs:
 
       - name: Configure LLVM
         run: |
+          export PATH="/opt/clang/bin:$PATH"
           TARGET_NAME=${{ matrix.arch }}-${{ matrix.os }}
           CMAKE_TOOLCHAIN_FILE="$GITHUB_WORKSPACE/cmake/$TARGET_NAME.cmake"
           CMAKE_INITIAL_CACHE="$GITHUB_WORKSPACE/cmake/llvm-distribution.cmake"
@@ -87,10 +101,12 @@ jobs:
 
       - name: Build LLVM
         run: |
+          export PATH="/opt/clang/bin:$PATH"
           CXX=clang++ CC=clang cmake --build llvm-build
 
       - name: Install LLVM
         run: |
+          export PATH="/opt/clang/bin:$PATH"
           CXX=clang++ CC=clang cmake --build llvm-build --target install-distribution
           cp llvm-build/lib/LLVMgold.so llvm-install/lib
           mkdir llvm-install/lib/bfd-plugins
