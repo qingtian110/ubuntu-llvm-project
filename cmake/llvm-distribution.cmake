@@ -53,6 +53,7 @@ set(LLVM_ENABLE_PROJECTS
     "compiler-rt"
     "llvm"
     "lld"
+    "polly"
     CACHE STRING "")
 
 set(LLVM_ENABLE_RUNTIMES "all" CACHE STRING "")
