@@ -86,7 +86,8 @@ jobs:
             -C $CMAKE_INITIAL_CACHE -Wno-dev
 
       - name: Build LLVM
-        run: cmake --build llvm-build
+        run: |
+          CXX=clang++ CC=clang cmake --build llvm-build
 
       - name: Install LLVM
         run: |

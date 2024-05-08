@@ -50,6 +50,7 @@ set(LLVM_TARGETS_TO_BUILD
 set(LLVM_ENABLE_PROJECTS
     "clang"
     "clang-tools-extra"
+    "compiler-rt"
     "llvm"
     "lld"
     CACHE STRING "")
@@ -79,7 +80,7 @@ set(CMAKE_BUILD_TYPE Release CACHE STRING "")
 
 set(LLVM_INSTALL_TOOLCHAIN_ONLY OFF CACHE BOOL "")
 
-set(LLVM_BUILD_RUNTIME ON CACHE BOOL "")
+set(LLVM_BUILD_RUNTIME OFF CACHE BOOL "")
 set(LLVM_BUILD_TOOLS ON CACHE BOOL "")
 set(LLVM_INCLUDE_TOOLS ON CACHE BOOL "")
 set(LLVM_LIT_ARGS "-v" CACHE STRING "")
