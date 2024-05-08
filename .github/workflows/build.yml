@@ -45,10 +45,11 @@ jobs:
 
       - name: Install LLVM
         run: |
-          export PATH="/opt/clang/bin:$PATH"
-          mkdir /opt/clang
-          curl -LO https://github.com/sbwml/ubuntu-llvm-project/releases/download/16.0.6/clang-16.0.6-x86_64-ubuntu-22.04.tar.xz --progress-bar
-          sudo tar --strip-components=1 -C /opt/clang -xf clang-16.0.6-x86_64-ubuntu-22.04.tar.xz
+          sudo sh -c 'echo "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-16 main" >> /etc/apt/sources.list'
+          sudo sh -c 'echo "deb-src http://apt.llvm.org/focal/ llvm-toolchain-focal-16 main" >> /etc/apt/sources.list'
+          wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+          sudo apt-get update
+          sudo apt-get install -y clang-16 lld-16 llvm-16
           clang --version
 
       - name: Checkout LLVM ${{ matrix.version }}
@@ -73,14 +74,14 @@ jobs:
       - name: Configure LLVM host tools
         run: |
           export PATH="/opt/clang/bin:$PATH"
-          CXX=clang++ CC=clang cmake -G Ninja -S llvm-project/llvm -B llvm-host \
+          CXX=clang++-16 CC=clang-16 cmake -G Ninja -S llvm-project/llvm -B llvm-host \
             -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" \
             -DCMAKE_BUILD_TYPE=Release -Wno-dev
 
       - name: Build LLVM host tools
         run: |
           export PATH="/opt/clang/bin:$PATH"
-          CXX=clang++ CC=clang cmake --build llvm-host --target llvm-tblgen clang-tblgen llvm-config clang-tidy-confusable-chars-gen clang-pseudo-gen
+          CXX=clang++-16 CC=clang-16 cmake --build llvm-host --target llvm-tblgen clang-tblgen llvm-config clang-tidy-confusable-chars-gen clang-pseudo-gen
           HOSTBIN_PATH="$GITHUB_WORKSPACE/llvm-host/bin"
           echo "LLVM_NATIVE_TOOL_DIR=$HOSTBIN_PATH" >> "$GITHUB_ENV"
           echo "LLVM_TABLEGEN=$HOSTBIN_PATH/llvm-tblgen" >> "$GITHUB_ENV"
@@ -94,7 +95,7 @@ jobs:
           TARGET_NAME=${{ matrix.arch }}-${{ matrix.os }}
           CMAKE_TOOLCHAIN_FILE="$GITHUB_WORKSPACE/cmake/$TARGET_NAME.cmake"
           CMAKE_INITIAL_CACHE="$GITHUB_WORKSPACE/cmake/llvm-distribution.cmake"
-          CXX=clang++ CC=clang cmake -G Ninja -S llvm-project/llvm -B llvm-build \
+          CXX=clang++-16 CC=clang-16 cmake -G Ninja -S llvm-project/llvm -B llvm-build \
             -DCMAKE_INSTALL_PREFIX=llvm-install \
             -DCMAKE_TOOLCHAIN_FILE="$CMAKE_TOOLCHAIN_FILE" \
             -C $CMAKE_INITIAL_CACHE -Wno-dev
@@ -102,12 +103,12 @@ jobs:
       - name: Build LLVM
         run: |
           export PATH="/opt/clang/bin:$PATH"
-          CXX=clang++ CC=clang cmake --build llvm-build
+          CXX=clang++-16 CC=clang-16 cmake --build llvm-build
 
       - name: Install LLVM
         run: |
           export PATH="/opt/clang/bin:$PATH"
-          CXX=clang++ CC=clang cmake --build llvm-build --target install-distribution
+          CXX=clang++-16 CC=clang-16 cmake --build llvm-build --target install-distribution
           cp llvm-build/lib/LLVMgold.so llvm-install/lib
           mkdir llvm-install/lib/bfd-plugins
           ln -sf ../LLVMgold.so llvm-install/lib/bfd-plugins/LLVMgold.so
