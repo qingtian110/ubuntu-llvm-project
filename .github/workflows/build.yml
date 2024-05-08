@@ -50,7 +50,6 @@ jobs:
           wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
           sudo apt-get update
           sudo apt-get install -y clang-16 lld-16 llvm-16
-          clang --version
 
       - name: Checkout LLVM ${{ matrix.version }}
         uses: actions/checkout@v4
