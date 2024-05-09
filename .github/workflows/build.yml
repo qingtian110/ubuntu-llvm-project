@@ -64,7 +64,7 @@ jobs:
             git -C llvm-project apply $GITHUB_WORKSPACE/patches/llvm-16-add-lld-install-targets.patch
             git -C llvm-project apply $GITHUB_WORKSPACE/patches/llvm-16-add-llvm-name-prefix-to-llc-lli-opt-tools.patch
             git -C llvm-project apply $GITHUB_WORKSPACE/patches/llvm-16-force-disable-clang-ast-introspection.patch
-          elif [[ "${{ matrix.version_major }}" == 17 ]]; then
+          elif [[ "${{ matrix.version_major }}" == 17 ]] || [[ "${{ matrix.version_major }}" == 18 ]]; then
             git -C llvm-project apply $GITHUB_WORKSPACE/patches/llvm-17-add-lld-install-targets.patch
             git -C llvm-project apply $GITHUB_WORKSPACE/patches/llvm-17-add-llvm-name-prefix-to-llc-lli-opt-tools.patch
             git -C llvm-project apply $GITHUB_WORKSPACE/patches/llvm-17-force-disable-clang-ast-introspection.patch
